@@ -1,0 +1,158 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Polymer Lab RPG</title>
+<style>
+:root{
+  --ink:#111827; --muted:#374151; --border:#cbd5e1; --card:#f8fafc;
+  --accent:#2563eb; --accent-text:#fff; --danger:#991b1b; --good:#166534;
+}
+*{box-sizing:border-box}
+body{margin:0;background:#fff;color:var(--ink);font-family:Arial,Helvetica,sans-serif;line-height:1.5}
+#polymer-rpg{max-width:760px;margin:30px auto;padding:0 18px}
+.card{border:1px solid var(--border);border-radius:18px;background:var(--card);padding:20px}
+button{min-height:48px;border:1px solid #94a3b8;border-radius:13px;padding:11px 15px;background:#fff;color:#111827;font-size:16px;font-weight:750;cursor:pointer}
+button:hover{background:#f1f5f9}
+button:focus-visible{outline:3px solid #93c5fd;outline-offset:2px}
+.primary{background:var(--accent);color:var(--accent-text);border-color:var(--accent)}
+.choice{width:100%;text-align:left;margin-top:10px}
+.choice.correct{border-color:#86efac;background:#f0fdf4}
+.choice.wrong{border-color:#fca5a5;background:#fef2f2}
+.choice:disabled{cursor:default;opacity:.92}
+.muted{color:var(--muted)}
+.mol{display:inline-flex;align-items:center;justify-content:center;border:2px solid #374151;border-radius:12px;padding:10px 12px;background:#fff;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-weight:800}
+.reaction{min-height:135px;display:flex;align-items:center;justify-content:center;gap:12px;flex-wrap:wrap;background:#fff;border:1px solid var(--border);border-radius:16px;padding:18px}
+.arrow{font-size:27px;font-weight:900;color:#111827}
+.bead{display:inline-flex;width:31px;height:31px;border:3px solid currentColor;border-radius:50%;align-items:center;justify-content:center;font-weight:900;font-size:12px}
+.link{display:inline-block;width:20px;height:5px;background:#475569;border-radius:5px;vertical-align:middle}
+.chain{display:flex;align-items:center;justify-content:center;flex-wrap:wrap;gap:2px}
+.fail{border:1px solid #fecaca;background:#fff7f7;border-radius:18px;padding:20px}
+.success{border:1px solid #bbf7d0;background:#f0fdf4;border-radius:18px;padding:20px}
+.tag{display:inline-block;border-radius:999px;padding:5px 10px;background:#e5e7eb;color:#111827;font-size:12px;font-weight:850}
+.scene{font-size:15px;color:#111827;line-height:1.6}
+blockquote{color:#111827}
+.fade{animation:fade .3s ease}
+@keyframes fade{from{opacity:.15;transform:translateY(5px)}to{opacity:1;transform:none}}
+h1,h2,h3,b,strong{color:#111827}
+@media(max-width:520px){#polymer-rpg{margin:15px auto;padding:0 12px}.card{padding:16px}.reaction{gap:8px}.mol{font-size:13px}}
+</style>
+</head>
+<body>
+<div id="polymer-rpg">
+<section id="welcome" class="card">
+<div class="tag">POLYMER RESEARCH CENTRE</div>
+<h1>🧪 Polymer Lab RPG</h1>
+<p class="scene">You are joining a polymer research team. Your character determines <b>which experiment you perform</b>. There is no right or wrong character — choose the research story you want to play.</p>
+<div>
+<button class="choice" data-role="mechanism"><div style="font-size:18px">🔬 Mechanism Specialist</div><div class="scene">Investigate a radical chain-growth reaction and diagnose why a polymerisation works or fails.</div></button>
+<button class="choice" data-role="materials"><div style="font-size:18px">🏭 Materials Scientist</div><div class="scene">Develop a polyester material and work out how monomer functionality controls step-growth.</div></button>
+<button class="choice" data-role="process"><div style="font-size:18px">⚗️ Process Chemist</div><div class="scene">Compare polymerisation strategies and choose a route for a real industrial material.</div></button>
+</div>
+</section>
+
+<section id="briefing" class="card" hidden>
+<span id="roleTag" class="tag"></span>
+<h2 id="briefTitle"></h2>
+<p id="briefText" class="scene"></p>
+<div id="briefMission" class="card"></div>
+<button id="begin" class="primary" style="width:100%;margin-top:20px">Start this experiment →</button>
+</section>
+
+<section id="lab" hidden>
+<div style="display:flex;justify-content:space-between;gap:12px;margin-bottom:12px">
+<div><span id="labTag" class="tag"></span><h2 id="stepTitle" style="margin:8px 0 0"></h2></div>
+<div style="text-align:right"><div class="muted">EXPERIMENT</div><div id="stepNo"><b>1 / 4</b></div></div>
+</div>
+<div id="experiment"></div>
+<div id="result" style="margin-top:16px"></div>
+</section>
+
+<section id="complete" class="card" hidden>
+<div style="font-size:48px">🧪🏆</div>
+<h2>Experiment successful!</h2>
+<p id="completeText" class="scene"></p>
+<div class="success" style="margin-top:16px"><b>Research log</b><div id="log" style="margin-top:12px"></div></div>
+<button id="chooseAgain" class="primary" style="width:100%;margin-top:20px">Choose another research path</button>
+</section>
+</div>
+
+<script>
+(() => {
+const root=document.getElementById('polymer-rpg');
+const welcome=root.querySelector('#welcome'),brief=root.querySelector('#briefing'),lab=root.querySelector('#lab'),complete=root.querySelector('#complete');
+const experiment=root.querySelector('#experiment'),result=root.querySelector('#result'),begin=root.querySelector('#begin');
+let role='',step=0,attempt=1;
+
+const bead=(x,c)=>`<span class="bead" style="color:${c||'#374151'}">${x}</span>`;
+const chain=n=>`<div class="chain">${Array.from({length:n},(_,i)=>bead(i%2?'B':'A',i%2?'#d97706':'#2563eb')).join('<span class="link"></span>')}</div>`;
+
+const data={
+mechanism:{
+tag:'🔬 MECHANISM SPECIALIST',title:'The Methyl Methacrylate Investigation',
+brief:'A batch of PMMA has failed. Your supervisor suspects that the chain-growth mechanism was interrupted. You must identify the monomer, choose a radical initiator, observe propagation, and diagnose the reaction.',
+mission:'Target polymer: <b>Poly(methyl methacrylate), PMMA</b><br>Research question: <i>How does a radical chain-growth polymerisation proceed?</i>',
+steps:[
+{title:'1. Identify the reactive feature',html:`<div class="card"><p class="scene">Your sample is methyl methacrylate (MMA).</p><div class="reaction" style="margin-top:16px"><div class="mol">CH₂=C(CH₃)COOCH₃</div></div><p style="margin-top:16px"><b>Which part is most directly involved in chain-growth polymerisation?</b></p><button class="choice" data-a="double">🔵 The C=C double bond</button><button class="choice" data-a="ester">🟠 The ester group</button><button class="choice" data-a="oh">🟢 An –OH group</button></div>`,ans:'double',why:'MMA is a vinyl monomer. The C=C bond provides the π bond that is consumed during chain propagation.'},
+{title:'2. Start the experiment',html:`<div class="card"><p class="scene">You need an initiator capable of generating radicals under suitable conditions.</p><div class="reaction" style="margin-top:16px"><div class="mol">MMA</div><span class="arrow">+</span><div class="mol">?</div></div><p style="margin-top:16px"><b>Which reagent is the appropriate choice?</b></p><button class="choice" data-a="aibn">⚡ AIBN</button><button class="choice" data-a="acid">🧪 Adipic acid</button><button class="choice" data-a="diol">💧 Ethylene glycol</button></div>`,ans:'aibn',why:'AIBN is a common radical initiator for vinyl polymerisation. Adipic acid and ethylene glycol are monomers/functional reagents used in step-growth chemistry.'},
+{title:'3. Watch propagation',html:`<div class="card"><p class="scene">A radical has formed at the chain end.</p><div class="reaction" style="margin-top:16px"><div>${chain(3)}<span style="color:#dc2626;font-size:24px;font-weight:900">•</span></div><span class="arrow">+</span><div class="mol">CH₂=CH–R</div><span class="arrow">→</span><div class="mol">?</div></div><p style="margin-top:16px"><b>What should happen next?</b></p><button class="choice" data-a="prop">🔗 The active chain adds another monomer and remains active</button><button class="choice" data-a="step">🧩 Two complete polymer chains must combine</button><button class="choice" data-a="water">💧 Water must be eliminated</button></div>`,ans:'prop',why:'Propagation is repeated addition of monomer to an active chain end. The new chain end remains reactive and can add another monomer.'},
+{title:'4. Diagnose the failed batch',html:`<div class="card"><p class="scene">A student repeated the experiment but used no radical initiator. The reaction produced almost no polymer.</p><div class="reaction" style="margin-top:16px"><div class="mol">MMA</div><span class="arrow">+</span><div class="mol">NO INITIATOR</div><span class="arrow">→</span><div class="mol">Very little polymer</div></div><p style="margin-top:16px"><b>What is the best mechanistic explanation?</b></p><button class="choice" data-a="active">🔬 There is no efficient source of initiating radicals</button><button class="choice" data-a="functional">🧩 MMA needs two functional groups to react</button><button class="choice" data-a="water">💧 Polymerisation cannot occur because water is absent</button></div>`,ans:'active',why:'Without an efficient radical source, initiation is strongly suppressed, so the chain-growth process cannot proceed normally.'}
+]},
+materials:{
+tag:'🏭 MATERIALS SCIENTIST',title:'Designing a Polyester',
+brief:'Your team needs a polyester for a new materials application. You will investigate how bifunctional monomers react and how step-growth changes molecular size over time.',
+mission:'Target polymer: <b>Polyester / PET-style chemistry</b><br>Research question: <i>How does step-growth polymerisation build molecular weight?</i>',
+steps:[
+{title:'1. Choose the monomers',html:`<div class="card"><p class="scene">Your target requires a polyester backbone.</p><div class="reaction" style="margin-top:16px"><div class="mol">HO–R–OH</div><span class="arrow">+</span><div class="mol">HOOC–R′–COOH</div></div><p style="margin-top:16px"><b>What makes these suitable for step-growth polymerisation?</b></p><button class="choice" data-a="function">🧩 Each monomer has reactive functional groups at both ends</button><button class="choice" data-a="double">🔵 Each monomer contains a C=C bond</button><button class="choice" data-a="radical">⚡ Each monomer is already a radical</button></div>`,ans:'function',why:'Bifunctional monomers can connect repeatedly because each molecule carries reactive groups at both ends.'},
+{title:'2. Predict the first reaction',html:`<div class="card"><p class="scene">An alcohol group meets a carboxylic-acid group.</p><div class="reaction" style="margin-top:16px"><div class="mol">–OH</div><span class="arrow">+</span><div class="mol">HOOC–</div><span class="arrow">→</span><div class="mol">?</div></div><p style="margin-top:16px"><b>What bond is formed in this polyester example?</b></p><button class="choice" data-a="ester">🔗 An ester linkage</button><button class="choice" data-a="amide">🔬 An amide linkage</button><button class="choice" data-a="ether">🧪 An ether only</button></div>`,ans:'ester',why:'Carboxylic acid + alcohol gives an ester linkage in this condensation chemistry, with water as a small-molecule by-product.'},
+{title:'3. The chain-size puzzle',html:`<div class="card"><p class="scene">At low conversion, many monomers and short oligomers remain. As conversion increases, the average molecular size rises.</p><div class="reaction" style="margin-top:16px"><div>${bead('A')}<span class="link"></span>${bead('B')}</div><span class="arrow">+</span><div>${bead('A')}<span class="link"></span>${bead('B')}<span class="link"></span>${bead('A')}</div><span class="arrow">→</span><div>${chain(6)}</div></div><p style="margin-top:16px"><b>Why can molecular size increase dramatically late in a step-growth reaction?</b></p><button class="choice" data-a="conversion">📈 More functional groups have reacted, allowing oligomers to connect into larger species</button><button class="choice" data-a="initiation">⚡ A radical suddenly starts every chain</button><button class="choice" data-a="termination">🛑 Every chain terminates at high conversion</button></div>`,ans:'conversion',why:'In step-growth systems, high conversion of functional groups is crucial for achieving high molecular weight. Larger oligomers can continue reacting with one another.'},
+{title:'4. Spot the misconception',html:`<div class="card"><p class="scene">Your lab partner writes:</p><blockquote class="border-l-4 pl-4 font-bold">“Step-growth simply means condensation, and chain-growth simply means addition.”</blockquote><p style="margin-top:16px"><b>What should you write in the lab notebook?</b></p><button class="choice" data-a="reject">🧠 Reject the equivalence: growth mechanism and reaction type are different concepts</button><button class="choice" data-a="accept">✍️ Accept it as a universal definition</button></div>`,ans:'reject',why:'The terms are not interchangeable. Step-growth describes how species grow through functional-group reactions; condensation describes a reaction type involving loss of a small molecule.'}
+]},
+process:{
+tag:'⚗️ PROCESS CHEMIST',title:'Choose the Industrial Route',
+brief:'A company wants a polymer with specific properties. You must compare candidate monomers, select a mechanism, and justify your process using real polymer examples.',
+mission:'Industrial challenge: <b>Choose a suitable growth mechanism for different products</b><br>Research question: <i>Can you identify the mechanism from chemical evidence rather than memorisation?</i>',
+steps:[
+{title:'1. Product A — Polystyrene',html:`<div class="card"><p class="scene">The plant produces polystyrene from styrene.</p><div class="reaction" style="margin-top:16px"><div class="mol">C₆H₅–CH=CH₂</div><span class="arrow">→</span><div class="mol">[–CH₂–CH(C₆H₅)–]ₙ</div></div><p style="margin-top:16px"><b>Which mechanism best matches this monomer?</b></p><button class="choice" data-a="chain">🔵 Chain-growth</button><button class="choice" data-a="step">🟠 Step-growth</button></div>`,ans:'chain',why:'Styrene is a vinyl monomer. The C=C bond can participate in chain-growth polymerisation to form polystyrene.'},
+{title:'2. Product B — Nylon-6,6',html:`<div class="card"><p class="scene">The next production line makes nylon-6,6 from hexamethylenediamine and adipic acid.</p><div class="reaction" style="margin-top:16px"><div class="mol">H₂N–(CH₂)₆–NH₂</div><span class="arrow">+</span><div class="mol">HOOC–(CH₂)₄–COOH</div></div><p style="margin-top:16px"><b>Which mechanism is the best classification?</b></p><button class="choice" data-a="step">🟠 Step-growth</button><button class="choice" data-a="chain">🔵 Chain-growth</button></div>`,ans:'step',why:'Both monomers are bifunctional. Amine and carboxylic-acid groups react to build nylon-6,6 through step-growth chemistry.'},
+{title:'3. The reactor decision',html:`<div class="card"><p class="scene">A new monomer contains a C=C bond and your proposed mechanism requires repeated radical addition.</p><p style="margin-top:16px"><b>Which sequence best describes the mechanism?</b></p><button class="choice" data-a="ipt">⚡ Initiation → Propagation → Termination</button><button class="choice" data-a="fg">🧩 Functional-group reaction → oligomer → functional-group reaction</button><button class="choice" data-a="water">💧 Water elimination → radical initiation → termination</button></div>`,ans:'ipt',why:'That is the canonical sequence for a radical chain-growth mechanism: initiation creates the active species, propagation adds monomer, and termination removes the active chain.'},
+{title:'4. Final process recommendation',html:`<div class="card"><h3>Your supervisor asks for a rule-of-thumb.</h3><p class="scene">You must explain how to approach an unfamiliar polymerisation without memorising a list.</p><p style="margin-top:16px"><b>Which strategy is scientifically strongest?</b></p><button class="choice" data-a="evidence">🔎 Inspect the monomer structure, reactive groups, initiator/catalyst and observed mechanism</button><button class="choice" data-a="name">📚 Memorise the polymer name and guess the mechanism</button><button class="choice" data-a="cond">🧠 Assume condensation = step-growth in every case</button></div>`,ans:'evidence',why:'Mechanistic classification should be based on chemical evidence: what reactive species are present, what bonds form/break, and how molecular species grow.'}
+]}};
+
+function chooseRole(r){
+ role=r;const d=data[r];welcome.hidden=true;brief.hidden=false;
+ root.querySelector('#roleTag').textContent=d.tag;root.querySelector('#briefTitle').textContent=d.title;
+ root.querySelector('#briefText').textContent=d.brief;root.querySelector('#briefMission').innerHTML=d.mission;
+}
+welcome.querySelectorAll('[data-role]').forEach(b=>b.addEventListener('click',()=>chooseRole(b.dataset.role)));
+begin.addEventListener('click',()=>{brief.hidden=true;lab.hidden=false;step=0;attempt=1;root.querySelector('#labTag').textContent=data[role].tag;renderStep()});
+function renderStep(){
+ const d=data[role],s=d.steps[step];root.querySelector('#stepTitle').textContent=s.title;root.querySelector('#stepNo').innerHTML=`<b>${step+1} / ${d.steps.length}</b>`;
+ experiment.innerHTML=s.html;result.innerHTML='';
+ experiment.querySelectorAll('.choice').forEach(b=>b.addEventListener('click',()=>answer(b,s)));
+}
+function answer(btn,s){
+ const buttons=experiment.querySelectorAll('.choice');buttons.forEach(b=>b.disabled=true);
+ const ok=btn.dataset.a===s.ans;
+ if(ok){
+  btn.classList.add('correct');
+  result.innerHTML=`<div class="success fade"><b>✅ Experiment step successful</b><p style="margin-top:8px">${s.why}</p>${step<data[role].steps.length-1?'<button id="continue" class="primary" style="margin-top:16px">Continue experiment →</button>':'<button id="finish" class="primary" style="margin-top:16px">Complete experiment →</button>'}</div>`;
+  const n=root.querySelector('#continue')||root.querySelector('#finish');
+  n.addEventListener('click',()=>{if(step<data[role].steps.length-1){step++;renderStep()}else finish()});
+ }else{
+  btn.classList.add('wrong');
+  result.innerHTML=`<div class="fail fade"><div style="font-size:32px">💥</div><h3 style="margin:5px 0">EXPERIMENT FAILED</h3><p><b>What went wrong?</b> ${s.why}</p><p class="scene">This decision changes the reaction pathway. Review the evidence and run this experiment again from the beginning.</p><button id="restart" class="primary" style="margin-top:16px">↻ Restart experiment</button></div>`;
+  root.querySelector('#restart').addEventListener('click',()=>{step=0;attempt++;renderStep()});
+ }
+}
+function finish(){
+ lab.hidden=true;complete.hidden=false;const d=data[role];
+ root.querySelector('#completeText').textContent=`You completed the ${d.title} pathway after ${attempt} attempt${attempt===1?'':'s'}.`;
+ root.querySelector('#log').innerHTML=`<ul><li><b>Role:</b> ${d.tag}</li><li><b>Experiment:</b> ${d.title}</li><li><b>Key principle:</b> ${role==='mechanism'?'active chain ends and propagation':role==='materials'?'functional groups, conversion and step-growth':'mechanistic evidence and real polymer examples'}</li></ul>`;
+}
+root.querySelector('#chooseAgain').addEventListener('click',()=>{complete.hidden=true;welcome.hidden=false;step=0;attempt=1});
+})();
+</script>
+</body>
+</html>
